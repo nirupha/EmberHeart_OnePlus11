@@ -35,7 +35,7 @@ on:
           - OOS15
           - OOS16
           - OOS16_CUSTOM
-          - LOS_23.2
+          - LOS_23_2
         default: OOS16_CUSTOM
       evict_unused_ccache:
         description: 'Do you want to use evict unused ccache?'
