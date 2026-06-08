@@ -411,7 +411,7 @@ runs:
         # LOS sources expect out to be inside kernel_platform so we set out_dir as . 
         # because our actual out dir is inside common directory
         if [[ "$BUILD_TYPE" == "Monolithic Build" ]]; then
-          export OUT_DIR=.
+          export OUT_DIR=$MSM
         fi
 
         if [[ "$BUILD_TYPE" == "Mixed Build" || "$BUILD_TYPE" == "Modules Only" ]]; then
