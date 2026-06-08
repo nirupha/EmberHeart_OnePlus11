@@ -214,6 +214,10 @@ runs:
           CONFIGS+=("arch/arm64/configs/vendor/oplus/${SOC}_GKI.config")
         fi
 
+        if [ -f "arch/arm64/configs/vendor/debugfs.config" ]; then
+          CONFIGS+=("arch/arm64/configs/vendor/debugfs.config")
+        fi
+
         # Merge defconfig fragments
         ./scripts/kconfig/merge_config.sh -O "$OUT" -m "${CONFIGS[@]}"
 
