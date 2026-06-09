@@ -32,6 +32,10 @@ inputs:
     required: false
     type: string
     default: O2  # Choices: O2 or O3
+  clang_version:
+    required: false
+    type: string
+    default: ''
   kernel_uname:
     required: false
     type: string
@@ -807,6 +811,13 @@ runs:
         CLANG_FOUND=false
         for base in "$KERNEL_PLATFORM/prebuilts" "$KERNEL_PLATFORM/prebuilts-master"; do
           [ -d "$base/clang/host/linux-x86" ] || continue
+
+          if [ -n "${{ inputs.clang_version }}" ] && [ -x "$base"/clang/host/linux-x86/${{ inputs.clang_version }}/bin/clang ]; then
+            CLANG_BIN="${base}"/clang/host/linux-x86/${{ inputs.clang_version }}/bin
+            CLANG_FOUND=true
+            continue
+          fi
+
           latest=$(ls -d "$base"/clang/host/linux-x86/clang-r*/ 2>/dev/null | sort -V | tail -n1 || true)
           if [ -n "$latest" ] && [ -x "$latest/bin/clang" ]; then
             CLANG_BIN="$latest/bin"
