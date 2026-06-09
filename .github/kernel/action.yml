@@ -899,6 +899,8 @@ runs:
           STRIP=llvm-strip
           HOSTCC="ccache clang"
           HOSTCXX="ccache clang++"
+          HOSTCFLAGS="-fPIC"
+          HOSTCXXFLAGS="-fPIC"
           CC="ccache clang"
           KCFLAGS="$KCFLAGS"
           KCPPFLAGS="$KCPPFLAGS"
