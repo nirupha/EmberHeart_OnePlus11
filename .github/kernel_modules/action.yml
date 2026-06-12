@@ -325,17 +325,15 @@ runs:
           export PATH="$KERNEL_PLATFORM/prebuilts/kernel-build-tools/linux-x86/bin:$PATH"
         fi
 
-        if [ "${CUSTOM_ROM_COMPAT:-}" == "false" ]; then
-          if [ "${{ inputs.optimize_level }}" = "O3" ]; then
-            KCFLAGS_EXTRA="-O3"
-          else
-            KCFLAGS_EXTRA="-O2"
-          fi
-
-          # Consistent flags; include -pipe and disable stack protector
-          KCFLAGS="-Wno-error -pipe -fno-stack-protector ${KCFLAGS_EXTRA}"
-          KCPPFLAGS="-DCONFIG_OPTIMIZE_INLINING"
+        if [ "${{ inputs.optimize_level }}" = "O3" ]; then
+          KCFLAGS_EXTRA="-O3"
+        else
+          KCFLAGS_EXTRA="-O2"
         fi
+
+        # Consistent flags; include -pipe and disable stack protector
+        KCFLAGS="-Wno-error -pipe -fno-stack-protector ${KCFLAGS_EXTRA}"
+        KCPPFLAGS="-DCONFIG_OPTIMIZE_INLINING"
 
         echo '#!/bin/bash' > ld-wrapper
         echo 'ld.lld "$@" --thinlto-cache-dir=$LDCACHE_DIR --thinlto-jobs=$(nproc --all)' >> ld-wrapper
