@@ -9,5 +9,6 @@
   "manifest_los_22_2": "https://raw.githubusercontent.com/nullptr-t-oss/kernel_patches/refs/heads/main/kernel_manifest/oneplus_11_los_22.2.xml",
   "android_version": "android13",
   "kernel_version": "5.15",
+  "custom_rom_compat": true,
   "hmbird": false
 }

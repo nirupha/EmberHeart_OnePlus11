@@ -129,6 +129,7 @@ runs:
         echo "CLANG_BIN_PATH=$CLANG_BIN" >> "$GITHUB_ENV"
         CLANG_VERSION="$("$CLANG_BIN/clang" --version | head -n1)"
         echo "CLANG_VERSION=$CLANG_VERSION" >> "$GITHUB_ENV"
+        echo "CLANG=$(\"$CLANG_BIN/clang\" --version | sed -n 's/.*based on \([^)]*\).*version \([0-9.]*\).*/clang-\2-\1/p')" >> "$GITHUB_ENV"
         echo "Detected Clang: $CLANG_VERSION"
 
     - name: Configure ccache
@@ -151,18 +152,21 @@ runs:
       uses: actions/cache/restore@v5
       with:
         path: ${{ env.CCACHE_DIR }}
-        key: ccache-${{ env.MODEL }}-modules-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }}
+        key: ccache-${{ env.MODEL }}-modules-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }}-${{ env.CLANG }}
         restore-keys: |
-          ccache-${{ env.MODEL }}-modules-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }}
+          ccache-${{ env.MODEL }}-modules-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }}-${{ env.CLANG }}
+          ccache-${{ env.MODEL }}-modules-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }}-
           ccache-${{ env.MODEL }}-modules-${{ inputs.optimize_level }}-
 
     - name: Restore LTO cache
+      if: env.CUSTOM_ROM_COMPAT == 'false'
       uses: actions/cache/restore@v5
       with:
         path: ${{ env.LDCACHE_DIR }}
-        key: LTO-${{ env.MODEL }}-modules-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }}
+        key: LTO-${{ env.MODEL }}-modules-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }}-${{ env.CLANG }}
         restore-keys: |
-          LTO-${{ env.MODEL }}-modules-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }}
+          LTO-${{ env.MODEL }}-modules-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }}-${{ env.CLANG }}
+          LTO-${{ env.MODEL }}-modules-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }}-
           LTO-${{ env.MODEL }}-modules-${{ inputs.optimize_level }}-
 
     - name: Restore files for Mixed builds
@@ -170,7 +174,7 @@ runs:
       uses: actions/cache/restore@v5
       with:
         path: ${{ env.KBUILD_MIXED_TREE_DIR }}
-        key: ${{ env.MODEL }}-MIXED-TREE-${{ inputs.optimize_level }}-${{ env.MIXED_KERNEL_VERSION }}
+        key: ${{ env.MODEL }}-MIXED-TREE-${{ inputs.optimize_level }}-${{ env.MIXED_KERNEL_VERSION }}-${{ env.CLANG }}
 
     - name: Check for Mixed Tree artifacts
       if: ${{ env.BUILD_TYPE == 'Modules Only' || env.BUILD_TYPE == 'Mixed Build' }}
@@ -321,15 +325,17 @@ runs:
           export PATH="$KERNEL_PLATFORM/prebuilts/kernel-build-tools/linux-x86/bin:$PATH"
         fi
 
-        if [ "${{ inputs.optimize_level }}" = "O3" ]; then
-          KCFLAGS_EXTRA="-O3"
-        else
-          KCFLAGS_EXTRA="-O2"
-        fi
+        if [ "${CUSTOM_ROM_COMPAT:-}" == "false" ]; then
+          if [ "${{ inputs.optimize_level }}" = "O3" ]; then
+            KCFLAGS_EXTRA="-O3"
+          else
+            KCFLAGS_EXTRA="-O2"
+          fi
 
-        # Consistent flags; include -pipe and disable stack protector
-        KCFLAGS="-Wno-error -pipe -fno-stack-protector ${KCFLAGS_EXTRA}"
-        KCPPFLAGS="-DCONFIG_OPTIMIZE_INLINING"
+          # Consistent flags; include -pipe and disable stack protector
+          KCFLAGS="-Wno-error -pipe -fno-stack-protector ${KCFLAGS_EXTRA}"
+          KCPPFLAGS="-DCONFIG_OPTIMIZE_INLINING"
+        fi
 
         echo '#!/bin/bash' > ld-wrapper
         echo 'ld.lld "$@" --thinlto-cache-dir=$LDCACHE_DIR --thinlto-jobs=$(nproc --all)' >> ld-wrapper
@@ -378,6 +384,15 @@ runs:
           )
         fi
 
+        if [ "${CUSTOM_ROM_COMPAT:-}" == "true" ]; then
+          MAKE_FLAGS=(
+            ARCH=arm64
+            SUBARCH=arm64
+            LLVM=1
+            LLVM_IAS=1
+          )
+        fi
+
         OUT=out
         INSTALL_MOD_PATH="$MSM/out"
         INSTALL_DTBS_PATH="$MSM/$OUT/dtbs_staging"
@@ -387,12 +402,14 @@ runs:
         mkdir -p "$OUT"
         make "${MAKE_FLAGS[@]}" O="$OUT" gki_defconfig
         
-        # Thin LTO
-        ./scripts/config --file "$OUT/.config" \
-            --enable CONFIG_LTO_CLANG_THIN \
-            --enable CONFIG_LTO_CLANG \
-            --enable CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE \
-            --disable CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE_O3
+        if [ "${CUSTOM_ROM_COMPAT:-}" == "false" ]; then
+          # Thin LTO
+          ./scripts/config --file "$OUT/.config" \
+              --enable CONFIG_LTO_CLANG_THIN \
+              --enable CONFIG_LTO_CLANG \
+              --enable CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE \
+              --disable CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE_O3
+        fi
 
         SECONDS=0
 
@@ -895,6 +912,7 @@ runs:
           echo ""
           echo "> [!NOTE]"
           echo "> Model: ${{ env.MODEL }}"
+          echo "> Clang: ${{ env.CLANG }}"
           echo ""
           echo "> [!IMPORTANT]"
           echo "> - Vendor boot SHA256: ${{ steps.create_vendor_boot.outputs.vendor_boot_sha256 }}"
@@ -927,23 +945,26 @@ runs:
           ccache --evict-older-than "${ccache_delta}s"
         fi
 
-        echo "[WARNING] Deleting old LTO cache"
-        gh cache delete LTO-${{ env.MODEL }}-modules-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }} || true
+        if [ "${CUSTOM_ROM_COMPAT:-}" == "false" ]; then
+          echo "[WARNING] Deleting old LTO cache"
+          gh cache delete LTO-${{ env.MODEL }}-modules-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }}-${{ env.CLANG }} || true
+        fi
 
         echo "[WARNING] Deleting old ccache"
-        gh cache delete ccache-${{ env.MODEL }}-modules-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }} || true
+        gh cache delete ccache-${{ env.MODEL }}-modules-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }}-${{ env.CLANG }} || true
 
     - name: Save ccache
       uses: actions/cache/save@v5
       with:
         path: ${{ env.CCACHE_DIR }}
-        key: ccache-${{ env.MODEL }}-modules-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }}
+        key: ccache-${{ env.MODEL }}-modules-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }}-${{ env.CLANG }}
 
     - name: Save LTO cache
+      if: env.CUSTOM_ROM_COMPAT == 'false'
       uses: actions/cache/save@v5
       with:
         path: ${{ env.LDCACHE_DIR }}
-        key: LTO-${{ env.MODEL }}-modules-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }}
+        key: LTO-${{ env.MODEL }}-modules-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }}-${{ env.CLANG }}
 
     - name: Upload Kernel Modules zip
       if: success() && steps.create_zip.conclusion == 'success'

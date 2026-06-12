@@ -130,6 +130,7 @@ runs:
         echo "CLANG_BIN_PATH=$CLANG_BIN" >> "$GITHUB_ENV"
         CLANG_VERSION="$("$CLANG_BIN/clang" --version | head -n1)"
         echo "CLANG_VERSION=$CLANG_VERSION" >> "$GITHUB_ENV"
+        echo "CLANG=$(\"$CLANG_BIN/clang\" --version | sed -n 's/.*based on \([^)]*\).*version \([0-9.]*\).*/clang-\2-\1/p')" >> "$GITHUB_ENV"
         echo "Detected Clang: $CLANG_VERSION"
 
         echo "Clang detected ✅"
@@ -171,8 +172,9 @@ runs:
       uses: actions/cache/restore@v5
       with:
         path: ${{ env.CCACHE_DIR }}
-        key: ccache-${{ env.MODEL }}-kernel-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }}
+        key: ccache-${{ env.MODEL }}-kernel-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }}-${{ env.CLANG }}
         restore-keys: |
+          ccache-${{ env.MODEL }}-kernel-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }}-${{ env.CLANG }}
           ccache-${{ env.MODEL }}-kernel-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }}
           ccache-${{ env.MODEL }}-kernel-${{ inputs.optimize_level }}-
 
@@ -180,9 +182,10 @@ runs:
       uses: actions/cache/restore@v5
       with:
         path: ${{ env.LDCACHE_DIR }}
-        key: LTO-${{ env.MODEL }}-kernel-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }}
+        key: LTO-${{ env.MODEL }}-kernel-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }}-${{ env.CLANG }}
         restore-keys: |
-          LTO-${{ env.MODEL }}-kernel-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }}
+          LTO-${{ env.MODEL }}-kernel-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }}-${{ env.CLANG }}
+          LTO-${{ env.MODEL }}-kernel-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }}-
           LTO-${{ env.MODEL }}-kernel-${{ inputs.optimize_level }}-
 
     - name: Clone AnyKernel3 and Other Dependencies
@@ -796,6 +799,7 @@ runs:
         echo "::endgroup::"
 
     - name: Add Build based configs
+      if: env.CUSTOM_ROM_COMPAT == 'false'
       shell: bash
       run: |
         set -euo pipefail
@@ -910,6 +914,15 @@ runs:
           KCFLAGS="$KCFLAGS"
           KCPPFLAGS="$KCPPFLAGS"
         )
+
+        if [ "${CUSTOM_ROM_COMPAT:-}" == "true" ]; then
+          MAKE_FLAGS=(
+            ARCH=arm64
+            SUBARCH=arm64
+            LLVM=1
+            LLVM_IAS=1
+          )
+        fi
 
         OUT=out
         INSTALL_MOD_PATH="$COMMON/out"
@@ -1201,6 +1214,7 @@ runs:
           echo ""
           echo "- Kernel Release: ${{ env.kernel_release }}"
           echo "- Kernel Uname: ${{ env.KERNEL_UNAME }}"
+          echo "- Clang : ${{ env.CLANG }}"
           echo "- KSUN Version: ${KSUVER:-unknown}"
           echo "- KSUN commit SHA: [${{ env.KSUN_COMMIT_SHA }}](https://github.com/KernelSU-Next/KernelSU-Next/commit/${{ env.KSUN_COMMIT_SHA }})"
           echo "- SUSFS Version: ${SUSVER:-unknown}"
@@ -1236,36 +1250,39 @@ runs:
           ccache --evict-older-than "${ccache_delta}s"
         fi
 
-        echo "[WARNING] Deleting old LTO cache..."
-        gh cache delete LTO-${{ env.MODEL }}-kernel-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }} || true
+        if [ "${CUSTOM_ROM_COMPAT:-}" == "false" ]; then
+          echo "[WARNING] Deleting old LTO cache..."
+          gh cache delete LTO-${{ env.MODEL }}-kernel-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }}-${{ env.CLANG }} || true
+        fi
 
         echo "[WARNING] Deleting old ccache..."
-        gh cache delete ccache-${{ env.MODEL }}-kernel-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }} || true
+        gh cache delete ccache-${{ env.MODEL }}-kernel-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }}-${{ env.CLANG }} || true
 
     - name: Purge old mixed artifacts
       if: ${{ env.BUILD_TYPE == 'Mixed Build' || env.BUILD_TYPE == 'Kernel Only' }}
       shell: bash
       run: |
-        gh cache delete ${{ env.MODEL }}-MIXED-TREE-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }} || true
+        gh cache delete ${{ env.MODEL }}-MIXED-TREE-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }}-${{ env.CLANG }} || true
 
     - name: Save ccache
       uses: actions/cache/save@v5
       with:
         path: ${{ env.CCACHE_DIR }}
-        key: ccache-${{ env.MODEL }}-kernel-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }}
+        key: ccache-${{ env.MODEL }}-kernel-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }}-${{ env.CLANG }}
 
     - name: Save LTO cache
+      if: env.CUSTOM_ROM_COMPAT == 'false'
       uses: actions/cache/save@v5
       with:
         path: ${{ env.LDCACHE_DIR }}
-        key: LTO-${{ env.MODEL }}-kernel-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }}
+        key: LTO-${{ env.MODEL }}-kernel-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }}-${{ env.CLANG }}
 
     - name: Save files for Mixed builds
       if: ${{ env.BUILD_TYPE == 'Mixed Build' || env.BUILD_TYPE == 'Kernel Only' }}
       uses: actions/cache/save@v5
       with:
         path: ${{ env.KBUILD_MIXED_TREE_DIR }}
-        key: ${{ env.MODEL }}-MIXED-TREE-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }}
+        key: ${{ env.MODEL }}-MIXED-TREE-${{ inputs.optimize_level }}-${{ env.KERNEL_FULL_VER }}-${{ env.CLANG }}
 
     - name: Upload Artifacts
       if: success() && steps.create_zip.conclusion == 'success'
