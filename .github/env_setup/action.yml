@@ -38,6 +38,11 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Setup SWAP
+      uses: pierotofy/set-swap-space@master
+      with:
+        swap-size-gb: 16
+
     - name: Parse op_config_json
       shell: bash
       run: |
