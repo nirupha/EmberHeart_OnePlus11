@@ -877,11 +877,12 @@ runs:
         INSTALL_MOD_PATH="$COMMON/out"
         mkdir -p "$OUT"
 
+        CONFIGS=(
+            "gki_defconfig"
+        )
+
         if [[ "$BUILD_TYPE" == "Monolithic Build" ]]; then
           # Merge defconfig fragments
-          CONFIGS=(
-            "gki_defconfig"
-          )
 
           if [ -f "arch/arm64/configs/vendor/${SOC}_GKI.config" ]; then
             CONFIGS+=("vendor/${SOC}_GKI.config")
@@ -894,10 +895,9 @@ runs:
           if [ -f "arch/arm64/configs/vendor/debugfs.config" ]; then
             CONFIGS+=("vendor/debugfs.config")
           fi
-
-          make "${MAKE_FLAGS[@]}" O="$OUT" "${CONFIGS[@]}"
         fi
 
+        make "${MAKE_FLAGS[@]}" O="$OUT" "${CONFIGS[@]}"
         echo "kernel_release=$(make "${MAKE_FLAGS[@]}" O="$OUT" -s kernelrelease)" >> "$GITHUB_ENV"
 
         # LOCALVERSION branding
