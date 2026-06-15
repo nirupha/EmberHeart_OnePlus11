@@ -370,27 +370,26 @@ runs:
         DTB_TYPES="$MSM_ARCH-overlays-"
 
         mkdir -p "$OUT"
-        if [[ "$BUILD_TYPE" == "Mixed Build" || "$BUILD_TYPE" == "Modules Only" ]]; then
-          # Merge defconfig fragments
-          CONFIGS=(
-            "gki_defconfig"
-          )
 
-          if [ -f "arch/arm64/configs/vendor/${SOC}_GKI.config" ]; then
-            CONFIGS+=("vendor/${SOC}_GKI.config")
-          fi
+        # Merge defconfig fragments
+        CONFIGS=(
+          "gki_defconfig"
+        )
 
-          if [ -f "arch/arm64/configs/vendor/oplus/${SOC}_GKI.config" ]; then
-            CONFIGS+=("vendor/oplus/${SOC}_GKI.config")
-          fi
-
-          if [ -f "arch/arm64/configs/vendor/debugfs.config" ]; then
-            CONFIGS+=("vendor/debugfs.config")
-          fi
-
-          make "${MAKE_FLAGS[@]}" O="$OUT" "${CONFIGS[@]}"
+        if [ -f "arch/arm64/configs/vendor/${SOC}_GKI.config" ]; then
+          CONFIGS+=("vendor/${SOC}_GKI.config")
         fi
-        
+
+        if [ -f "arch/arm64/configs/vendor/oplus/${SOC}_GKI.config" ]; then
+          CONFIGS+=("vendor/oplus/${SOC}_GKI.config")
+        fi
+
+        if [ -f "arch/arm64/configs/vendor/debugfs.config" ]; then
+          CONFIGS+=("vendor/debugfs.config")
+        fi
+
+        make "${MAKE_FLAGS[@]}" O="$OUT" "${CONFIGS[@]}"
+
         if [ "${CUSTOM_ROM_COMPAT:-}" == "false" ]; then
           # Thin LTO
           ./scripts/config --file "$OUT/.config" \
