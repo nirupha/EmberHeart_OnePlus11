@@ -101,7 +101,7 @@ on:
         options:
           - OP13T
           - OP11_LOS
-        default: OP11
+        default: OP13T
 
 jobs:
   set-op-model:
