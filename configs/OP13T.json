@@ -5,10 +5,7 @@
   "boot_partition_size": "201326592",
   "vendor_boot_partition_size": "201326592",
   "qcacld_dev_name": "peach_v2",
-  "manifest_oos14": "oneplus_11_u.xml",
-  "manifest_oos15": "oneplus_11_v.xml",
   "manifest_oos16": "oneplus_13_b.xml",
-  "manifest_oos16_custom": "https://raw.githubusercontent.com/nullptr-t-oss/kernel_patches/refs/heads/main/kernel_manifest/oneplus_11_b.xml",
   "android_version": "android16",
   "kernel_version": "6.6",
   "hmbird": false
